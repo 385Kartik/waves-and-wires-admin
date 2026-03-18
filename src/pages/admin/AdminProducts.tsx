@@ -304,7 +304,7 @@ export default function AdminProducts() {
                       <div key={i} className="relative group">
                         <img src={url} alt={`img-${i}`} className="h-14 w-14 rounded-xl object-cover border border-zinc-200"/>
                         <button type="button"
-                          onClick={()=>{const imgs=form.imageUrls.split('\n').filter((_,idx)=>idx!==i);setForm(f=>({...f,imageUrls:imgs.join('\n');}));}}
+                          onClick={()=>{const imgs=form.imageUrls.split('\n').filter((_,idx)=>idx!==i);setForm(f=>({...f,imageUrls:imgs.join('\n')}));}}
                           className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                           ×
                         </button>
