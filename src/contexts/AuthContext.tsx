@@ -19,8 +19,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]         = useState<AuthUser | null>(null);
-  const [session, setSession]   = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,8 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   async function signOut() {
-  await supabase.auth.signOut({ scope: 'global' });
-}
+    await supabase.auth.signOut({ scope: 'global' });
+  }
 
   const updateProfile = async (data: { full_name?: string; phone?: string }) => {
     if (!user) return false;
