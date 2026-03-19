@@ -58,7 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const signOut = async () => { await supabase.auth.signOut(); };
+  async function signOut() {
+  await supabase.auth.signOut({ scope: 'global' });
+}
 
   const updateProfile = async (data: { full_name?: string; phone?: string }) => {
     if (!user) return false;
