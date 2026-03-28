@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, RefreshCw, ChevronLeft, ChevronRight, X, Truck, CheckCircle, XCircle, Eye, Package } from 'lucide-react';
+import { Search, RefreshCw, ChevronLeft, ChevronRight, X, Truck, CheckCircle, Eye, Package } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -31,7 +31,6 @@ export default function AdminOrders() {
   const [status,setStatus]=useState('all');
   const [selected,setSelected]=useState<Order|null>(null);
   const [loading,setLoading]=useState(true);
-  const [updatingId,setUpdatingId]=useState<string|null>(null);
   const [trackInput,setTrackInput]=useState('');
   const [srPushing,setSrPushing]=useState(false);
   const [srTracking,setSrTracking]=useState<any>(null);
@@ -57,14 +56,6 @@ export default function AdminOrders() {
     setSelected({...o,items:data??[]});
     setTrackInput(o.tracking_number??'');
     setSrTracking(null);
-  };
-
-  const updateStatus=async(id:string,s:string)=>{
-    setUpdatingId(id);
-    const {error}=await supabase.from('orders').update({status:s,updated_at:new Date().toISOString()}).eq('id',id);
-    if(error)toast.error(error.message);
-    else{toast.success(`Status → ${s}`);load();if(selected?.id===id)setSelected(p=>p?{...p,status:s}:p);}
-    setUpdatingId(null);
   };
 
   const saveTracking=async()=>{
@@ -141,6 +132,13 @@ export default function AdminOrders() {
     setSrTrackLoading(false);
   }
 
+  // NAYA: Modal khulte hi tracking fetch
+  useEffect(() => {
+    if (selected?.awb_code) {
+      fetchSrTracking();
+    }
+  }, [selected?.awb_code]);
+
   const pages=Math.ceil(total/PAGE);
 
   return(
@@ -190,10 +188,9 @@ export default function AdminOrders() {
                     <p className="text-[11px] text-zinc-400">{o.customer_phone}</p>
                   </td>
                   <td className="px-4 py-3.5">
-                    <select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)} disabled={updatingId===o.id}
-                      className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border capitalize cursor-pointer outline-none ${SS[o.status]??''}`}>
-                      {STATUSES.filter(s=>s!=='all').map(s=><option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <span className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border capitalize ${SS[o.status]??''}`}>
+                      {o.status}
+                    </span>
                   </td>
                   <td className="px-4 py-3.5">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${PS[o.payment_status]??''}`}>{o.payment_status}</span>
@@ -342,11 +339,14 @@ export default function AdminOrders() {
                 </div>
               </div>
 
-              <div className="flex gap-2 flex-wrap">
-                {selected.status==='pending'&&<button onClick={()=>updateStatus(selected.id,'confirmed')} className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors"><CheckCircle className="h-3.5 w-3.5"/>Confirm</button>}
-                {['pending','confirmed','processing'].includes(selected.status)&&<button onClick={()=>updateStatus(selected.id,'cancelled')} className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors"><XCircle className="h-3.5 w-3.5"/>Cancel</button>}
-                {selected.status==='shipped'&&<button onClick={()=>updateStatus(selected.id,'delivered')} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors"><CheckCircle className="h-3.5 w-3.5"/>Delivered</button>}
+              {/* NAYA: Auto-sync message */}
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-center">
+                <p className="text-xs font-semibold text-zinc-500 flex items-center justify-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-emerald-500" />
+                  Status is automatically synced with Shiprocket courier updates.
+                </p>
               </div>
+
             </div>
           </div>
         </div>
