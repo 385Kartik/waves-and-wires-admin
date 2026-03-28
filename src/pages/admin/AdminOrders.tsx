@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, RefreshCw, ChevronLeft, ChevronRight, X, Truck, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { Search, RefreshCw, ChevronLeft, ChevronRight, X, Truck, CheckCircle, XCircle, Eye, Package } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -7,10 +7,9 @@ import { format } from 'date-fns';
 interface Order {
   id:string; order_number:string; status:string; payment_status:string; payment_method:string;
   total:number; subtotal:number; shipping:number; discount:number; tax:number;
-  created_at:string; tracking_number:string|null; shipping_address:any;
-  coupon_code:string|null;
-  customer_name?:string; customer_phone?:string;
-  items?:any[];
+  created_at:string; tracking_number:string|null; shipping_address:any; coupon_code:string|null;
+  shiprocket_order_id:string|null; awb_code:string|null; courier_name:string|null;
+  customer_name?:string; customer_phone?:string; items?:any[];
 }
 
 const SS:Record<string,string>={
@@ -34,26 +33,21 @@ export default function AdminOrders() {
   const [loading,setLoading]=useState(true);
   const [updatingId,setUpdatingId]=useState<string|null>(null);
   const [trackInput,setTrackInput]=useState('');
+  const [srPushing,setSrPushing]=useState(false);
+  const [srTracking,setSrTracking]=useState<any>(null);
+  const [srTrackLoading,setSrTrackLoading]=useState(false);
 
   const load=useCallback(async()=>{
     setLoading(true);
-    // FIX: don't join profiles here — profiles doesn't have email column
-    // Get customer info from shipping_address instead
     let q=supabase.from('orders')
-      .select('id,order_number,status,payment_status,payment_method,total,subtotal,shipping,discount,tax,created_at,tracking_number,shipping_address,coupon_code',{count:'exact'})
-      .order('created_at',{ascending:false})
-      .range(page*PAGE,(page+1)*PAGE-1);
+      .select('id,order_number,status,payment_status,payment_method,total,subtotal,shipping,discount,tax,created_at,tracking_number,shipping_address,coupon_code,shiprocket_order_id,awb_code,courier_name',{count:'exact'})
+      .order('created_at',{ascending:false}).range(page*PAGE,(page+1)*PAGE-1);
     if(status!=='all')q=q.eq('status',status);
     if(search.trim())q=q.ilike('order_number',`%${search.trim()}%`);
     const {data,count,error}=await q;
     if(error){toast.error(error.message);setLoading(false);return;}
-    setOrders((data??[]).map((o:any)=>({
-      ...o,
-      customer_name: o.shipping_address?.full_name ?? 'Guest',
-      customer_phone: o.shipping_address?.phone ?? '',
-    })));
-    setTotal(count??0);
-    setLoading(false);
+    setOrders((data??[]).map((o:any)=>({...o,customer_name:o.shipping_address?.full_name??'Guest',customer_phone:o.shipping_address?.phone??''})));
+    setTotal(count??0);setLoading(false);
   },[page,search,status]);
 
   useEffect(()=>{load();},[load]);
@@ -62,6 +56,7 @@ export default function AdminOrders() {
     const {data}=await supabase.from('order_items').select('*').eq('order_id',o.id);
     setSelected({...o,items:data??[]});
     setTrackInput(o.tracking_number??'');
+    setSrTracking(null);
   };
 
   const updateStatus=async(id:string,s:string)=>{
@@ -80,6 +75,71 @@ export default function AdminOrders() {
     setSelected(p=>p?{...p,tracking_number:trackInput,status:'shipped'}:p);
     load();
   };
+
+  async function pushToShiprocket() {
+    if(!selected)return;
+    setSrPushing(true);
+    try {
+      const items=(selected.items??[]).map((item:any)=>({
+        name:item.product_name, sku:item.product_sku||'SKU-001',
+        units:item.quantity, selling_price:item.price,
+        discount:'', tax:'', hsn:'',
+      }));
+      const payload={
+        order_id: selected.order_number,
+        order_date: new Date(selected.created_at).toISOString().split('T')[0],
+        pickup_location: 'Primary',
+        billing_customer_name: selected.shipping_address?.full_name||'',
+        billing_last_name: '',
+        billing_address: selected.shipping_address?.address_line_1||'',
+        billing_address_2: selected.shipping_address?.address_line_2||'',
+        billing_city: selected.shipping_address?.city||'',
+        billing_pincode: selected.shipping_address?.postal_code||'',
+        billing_state: selected.shipping_address?.state||'',
+        billing_country: 'India',
+        billing_email: 'support@wavesandwires.in',
+        billing_phone: selected.shipping_address?.phone||'',
+        shipping_is_billing: true,
+        order_items: items,
+        payment_method: selected.payment_method==='cod'?'COD':'Prepaid',
+        sub_total: selected.subtotal,
+        length: 20, breadth: 15, height: 10, weight: 0.5,
+      };
+      const res=await fetch('/api/shiprocket',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'create_order',payload}),
+      });
+      const data=await res.json();
+      if(data.order_id){
+        await supabase.from('orders').update({
+          shiprocket_order_id: String(data.order_id),
+          awb_code: data.awb_code||null,
+          courier_name: data.courier_name||null,
+          status:'confirmed', updated_at:new Date().toISOString(),
+        }).eq('id',selected.id);
+        setSelected(p=>p?{...p,shiprocket_order_id:String(data.order_id),awb_code:data.awb_code||null,courier_name:data.courier_name||null,status:'confirmed'}:p);
+        toast.success(`Pushed to Shiprocket! SR ID: ${data.order_id}`);
+        load();
+      } else {
+        toast.error('Shiprocket: '+(data.message||JSON.stringify(data)));
+      }
+    } catch(err:any){toast.error('Failed: '+err.message);}
+    setSrPushing(false);
+  }
+
+  async function fetchSrTracking() {
+    if(!selected?.awb_code)return;
+    setSrTrackLoading(true);
+    try {
+      const res=await fetch('/api/shiprocket',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'track_awb',payload:{awb:selected.awb_code}}),
+      });
+      const data=await res.json();
+      setSrTracking(data?.tracking_data??data??null);
+    } catch(err:any){toast.error('Tracking fetch failed');}
+    setSrTrackLoading(false);
+  }
 
   const pages=Math.ceil(total/PAGE);
 
@@ -121,7 +181,10 @@ export default function AdminOrders() {
                 <tr key={i}>{[...Array(7)].map((_,j)=><td key={j} className="px-4 py-4"><div className="h-4 rounded-lg bg-zinc-100 animate-pulse"/></td>)}</tr>
               )):orders.map(o=>(
                 <tr key={o.id} className="hover:bg-zinc-50/70 transition-colors group">
-                  <td className="px-4 py-3.5 font-bold text-amber-600 text-xs">#{o.order_number}</td>
+                  <td className="px-4 py-3.5">
+                    <p className="font-bold text-amber-600 text-xs">#{o.order_number}</p>
+                    {o.awb_code&&<p className="text-[10px] text-emerald-600 font-mono mt-0.5">AWB: {o.awb_code}</p>}
+                  </td>
                   <td className="px-4 py-3.5">
                     <p className="font-semibold text-zinc-800 text-xs">{o.customer_name}</p>
                     <p className="text-[11px] text-zinc-400">{o.customer_phone}</p>
@@ -133,10 +196,8 @@ export default function AdminOrders() {
                     </select>
                   </td>
                   <td className="px-4 py-3.5">
-                    <div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${PS[o.payment_status]??''}`}>{o.payment_status}</span>
-                      <p className="text-[9px] text-zinc-400 mt-0.5 capitalize">{o.payment_method==='cod'?'Cash on Delivery':'Online'}</p>
-                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${PS[o.payment_status]??''}`}>{o.payment_status}</span>
+                    <p className="text-[9px] text-zinc-400 mt-0.5 capitalize">{o.payment_method==='cod'?'COD':'Online'}</p>
                   </td>
                   <td className="px-4 py-3.5 text-right font-bold text-zinc-800 text-xs">{INR(o.total)}</td>
                   <td className="px-4 py-3.5 text-right text-[11px] text-zinc-400">{format(new Date(o.created_at),'dd MMM, h:mm a')}</td>
@@ -160,7 +221,6 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      {/* Detail Drawer */}
       {selected&&(
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={()=>setSelected(null)}/>
@@ -179,10 +239,12 @@ export default function AdminOrders() {
                   {selected.payment_status} — {selected.payment_method==='cod'?'COD':'Online'}
                 </span>
               </div>
+
               <div className="bg-zinc-50 rounded-2xl p-4 grid grid-cols-2 gap-3 text-sm">
                 <div><p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1">Customer</p><p className="font-semibold">{selected.customer_name}</p></div>
                 <div><p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1">Phone</p><p className="font-semibold">{selected.customer_phone||'—'}</p></div>
               </div>
+
               <div>
                 <p className="text-xs font-bold text-zinc-700 uppercase tracking-wider mb-2">Shipping Address</p>
                 <div className="bg-zinc-50 rounded-2xl p-4 text-sm text-zinc-600 leading-relaxed">
@@ -190,6 +252,7 @@ export default function AdminOrders() {
                   {selected.shipping_address?.city}, {selected.shipping_address?.state} — {selected.shipping_address?.postal_code}
                 </div>
               </div>
+
               <div>
                 <p className="text-xs font-bold text-zinc-700 uppercase tracking-wider mb-2">Items</p>
                 <div className="border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-50">
@@ -205,12 +268,15 @@ export default function AdminOrders() {
                   ))}
                 </div>
               </div>
+
               <div className="bg-zinc-50 rounded-2xl p-4 space-y-2 text-sm">
                 {[['Subtotal',INR(selected.subtotal)],selected.discount>0?['Discount',`−${INR(selected.discount)}`]:null,['Shipping',selected.shipping>0?INR(selected.shipping):'Free'],['Tax',INR(selected.tax)]].filter(Boolean).map(([k,v]:any)=>(
                   <div key={k} className="flex justify-between text-zinc-600"><span>{k}</span><span>{v}</span></div>
                 ))}
                 <div className="flex justify-between font-bold text-zinc-900 pt-2 border-t border-zinc-200 text-base"><span>Total</span><span>{INR(selected.total)}</span></div>
               </div>
+
+              {/* Tracking number */}
               <div>
                 <p className="text-xs font-bold text-zinc-700 uppercase tracking-wider mb-2">Tracking Number</p>
                 <div className="flex gap-2">
@@ -221,6 +287,61 @@ export default function AdminOrders() {
                   </button>
                 </div>
               </div>
+
+              {/* Shiprocket section */}
+              <div className="border border-zinc-200 rounded-2xl overflow-hidden">
+                <div className="bg-zinc-50 px-4 py-3 border-b border-zinc-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-zinc-500"/>
+                    <p className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Shiprocket</p>
+                  </div>
+                  {selected.shiprocket_order_id&&(
+                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      SR ID: {selected.shiprocket_order_id}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 space-y-3">
+                  {selected.awb_code?(
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-zinc-50 rounded-xl p-3">
+                          <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1">AWB Code</p>
+                          <p className="text-sm font-mono font-bold text-zinc-800">{selected.awb_code}</p>
+                        </div>
+                        <div className="bg-zinc-50 rounded-xl p-3">
+                          <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1">Courier</p>
+                          <p className="text-sm font-bold text-zinc-800">{selected.courier_name||'—'}</p>
+                        </div>
+                      </div>
+                      <button onClick={fetchSrTracking} disabled={srTrackLoading}
+                        className="flex items-center gap-2 w-full justify-center bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50">
+                        {srTrackLoading?<><span className="h-3.5 w-3.5 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin"/>Fetching…</>:<><RefreshCw className="h-3.5 w-3.5"/>Refresh Live Tracking</>}
+                      </button>
+                      {srTracking&&(
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+                          <p className="text-xs font-bold text-blue-800">
+                            {srTracking.shipment_status||srTracking.current_status||'Status fetched'}
+                          </p>
+                          {srTracking.etd&&<p className="text-xs text-blue-600">Expected: {srTracking.etd}</p>}
+                          {srTracking.awb_track_url&&(
+                            <a href={srTracking.awb_track_url} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-blue-700 font-bold hover:underline block">
+                              Track on courier site →
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ):(
+                    <button onClick={pushToShiprocket} disabled={srPushing||!!selected.shiprocket_order_id}
+                      className="flex items-center gap-2 w-full justify-center bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50">
+                      {srPushing?<><span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin"/>Pushing to Shiprocket…</>:<><Truck className="h-4 w-4"/>Push to Shiprocket</>}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-2 flex-wrap">
                 {selected.status==='pending'&&<button onClick={()=>updateStatus(selected.id,'confirmed')} className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors"><CheckCircle className="h-3.5 w-3.5"/>Confirm</button>}
                 {['pending','confirmed','processing'].includes(selected.status)&&<button onClick={()=>updateStatus(selected.id,'cancelled')} className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors"><XCircle className="h-3.5 w-3.5"/>Cancel</button>}
