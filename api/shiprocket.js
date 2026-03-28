@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 const BASE = 'https://apiv2.shiprocket.in/v1/external';
 let cachedToken = null, tokenExpiry = null;
 
