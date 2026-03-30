@@ -1,6 +1,12 @@
+// api/shiprocket.js
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: cancel_shipment endpoint was wrong (/orders/cancel/shipment/awbs → /shipments/cancel)
+// FIX: shiprocket_order_id should be sent as number, not string, for cancel
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BASE = 'https://apiv2.shiprocket.in/v1/external';
-let cachedToken  = null;
-let tokenExpiry  = null;
+let cachedToken = null;
+let tokenExpiry = null;
 
 async function getToken() {
   if (cachedToken && tokenExpiry && Date.now() < tokenExpiry) return cachedToken;
@@ -15,8 +21,8 @@ async function getToken() {
   if (!res.ok) throw new Error(`Shiprocket auth failed: HTTP ${res.status}`);
   const data = await res.json();
   if (!data.token) throw new Error('No token in Shiprocket auth response');
-  cachedToken  = data.token;
-  tokenExpiry  = Date.now() + 9 * 24 * 60 * 60 * 1000; // 9 din
+  cachedToken = data.token;
+  tokenExpiry = Date.now() + 9 * 24 * 60 * 60 * 1000; // 9 days
   return cachedToken;
 }
 
@@ -34,7 +40,7 @@ export default async function handler(req, res) {
     const token   = await getToken();
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
-    // ── Order create karo ───────────────────────────────────────────────
+    // ── Create order ─────────────────────────────────────────────────────
     if (action === 'create_order') {
       const r = await fetch(`${BASE}/orders/create/adhoc`, {
         method: 'POST', headers, body: JSON.stringify(payload),
@@ -42,41 +48,48 @@ export default async function handler(req, res) {
       return res.status(200).json(await r.json());
     }
 
-    // ── Order cancel karo (AWB assign hone SE PEHLE) ────────────────────
-    // Shiprocket order_id level par cancel
+    // ── Cancel order (before AWB assigned) ───────────────────────────────
+    // Shiprocket expects ids as array of NUMBERS (not strings)
     if (action === 'cancel_order') {
+      const orderId = Number(payload.shiprocket_order_id);
+      if (!orderId) return res.status(400).json({ error: 'Invalid shiprocket_order_id' });
+
       const r = await fetch(`${BASE}/orders/cancel`, {
         method: 'POST', headers,
-        body:   JSON.stringify({ ids: [payload.shiprocket_order_id] }),
+        body:   JSON.stringify({ ids: [orderId] }),
       });
-      return res.status(200).json(await r.json());
+      const data = await r.json();
+      console.log('[SR cancel_order]', JSON.stringify(data));
+      return res.status(200).json(data);
     }
 
-    // ── Shipment cancel karo (AWB assign hone KE BAAD) ──────────────────
-    // AWB level par cancel — agar AWB assign ho chuka hai toh yahi use karo
+    // ── Cancel shipment (after AWB assigned) ─────────────────────────────
+    // FIXED: was /orders/cancel/shipment/awbs → correct endpoint is /shipments/cancel
     if (action === 'cancel_shipment') {
-      const r = await fetch(`${BASE}/orders/cancel/shipment/awbs`, {
+      if (!payload.awb_code) return res.status(400).json({ error: 'awb_code required' });
+
+      const r = await fetch(`${BASE}/shipments/cancel`, {
         method: 'POST', headers,
         body:   JSON.stringify({ awbs: [payload.awb_code] }),
       });
-      return res.status(200).json(await r.json());
+      const data = await r.json();
+      console.log('[SR cancel_shipment]', JSON.stringify(data));
+      return res.status(200).json(data);
     }
 
-    // ── AWB se live tracking ─────────────────────────────────────────────
+    // ── Track by AWB ─────────────────────────────────────────────────────
     if (action === 'track_awb') {
       const r = await fetch(`${BASE}/courier/track/awb/${payload.awb}`, { headers });
       return res.status(200).json(await r.json());
     }
 
-    // ── SR se order details fetch karo (AWB sync ke liye) ───────────────
+    // ── Get order details (for AWB sync) ──────────────────────────────────
     if (action === 'get_order_details') {
       const r = await fetch(`${BASE}/orders/show/${payload.shiprocket_order_id}`, { headers });
       return res.status(200).json(await r.json());
     }
 
-    // ── Existing shipment par AWB generate karo ──────────────────────────
-    // Ye tab kaam aata hai jab create_order ke waqt AWB auto-assign nahi hua
-    // shipment_id required hai — create_order response se save hona chahiye
+    // ── Generate AWB (after create_order if not auto-assigned) ────────────
     if (action === 'generate_awb') {
       const r = await fetch(`${BASE}/courier/assign/awb/1`, {
         method: 'POST', headers,
@@ -88,6 +101,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Unknown action: ${action}` });
   } catch (err) {
     console.error('[Shiprocket API Error]', err.message);
+    // If token expired, clear cache so next request re-authenticates
+    if (err.message.includes('auth')) { cachedToken = null; tokenExpiry = null; }
     return res.status(500).json({ error: err.message });
   }
 }
