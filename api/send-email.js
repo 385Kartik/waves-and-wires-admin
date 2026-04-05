@@ -1,12 +1,26 @@
+// api/send-email.js
 import nodemailer from 'nodemailer';
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const ALLOWED_ORIGINS = [
+  process.env.SITE_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean);
+
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
+export default async function handler(req, res) {
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const { to, subject, html } = req.body;
@@ -16,10 +30,7 @@ export default async function handler(req, res) {
       host:   process.env.SMTP_HOST,
       port:   parseInt(process.env.SMTP_PORT || '587'),
       secure: process.env.SMTP_PORT === '465',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
 
     await transporter.sendMail({
