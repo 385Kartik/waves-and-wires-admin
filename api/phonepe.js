@@ -52,12 +52,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'amount and orderNumber required' });
     }
 
-    const merchantTransactionId = `${orderNumber}-${Date.now()}`;
+    const safeOrder = orderNumber.toString().replace(/[^a-zA-Z0-9]/g, '').slice(-15);
+    const merchantTransactionId = `T${safeOrder}${Date.now().toString().slice(-8)}`;
 
     const data = {
       merchantId,
       merchantTransactionId,
-      merchantUserId:    `WW_${orderNumber}`,
+      merchantUserId:    `U${safeOrder}`,
       amount:            Math.round(amount * 100),
       redirectUrl:       `${siteUrl}/payment-callback?order=${orderNumber}&txn=${merchantTransactionId}`,
       redirectMode:      'REDIRECT',
