@@ -42,7 +42,8 @@ export default async function handler(req, res) {
   const merchantId = process.env.PHONEPE_MERCHANT_ID;
   const saltKey    = process.env.PHONEPE_SALT_KEY;
   const saltIndex  = process.env.PHONEPE_SALT_INDEX || '1';
-  const siteUrl    = (process.env.SITE_URL || '').replace(/\/$/, '');
+  const reqOrigin  = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : '');
+  const siteUrl    = (process.env.SITE_URL || reqOrigin || 'https://wavesandwires-admin.vercel.app').replace(/\/$/, '');
 
   // ── INITIATE ────────────────────────────────────────────────────────────────
   if (action === 'initiate') {
