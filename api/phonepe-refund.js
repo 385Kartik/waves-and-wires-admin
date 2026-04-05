@@ -1,7 +1,8 @@
 // api/phonepe-refund.js
 import crypto from 'crypto';
 
-const PHONEPE_BASE = process.env.PHONEPE_ENV === 'prod'
+const envToken = (process.env.PHONEPE_ENV || '').toLowerCase().trim();
+const PHONEPE_BASE = (envToken === 'prod' || envToken === 'production')
   ? 'https://api.phonepe.com/apis/hermes'
   : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
 
