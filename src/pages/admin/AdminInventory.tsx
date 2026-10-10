@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Edit2, Check, X, AlertTriangle, Package } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { productService } from '@/services/product.service';
 
 interface Item { id:string; name:string; sku:string; stock:number; images:string[]; price:number; category_name?:string; }
 const INR=(n:number)=>`₹${n.toLocaleString('en-IN')}`;

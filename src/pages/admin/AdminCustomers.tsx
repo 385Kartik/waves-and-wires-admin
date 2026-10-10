@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Search, Eye, ChevronLeft, ChevronRight, X, Mail, Phone, ShoppingBag } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 
 interface Customer { id:string; full_name:string|null; phone:string|null; email:string; created_at:string; order_count?:number; total_spent?:number; }

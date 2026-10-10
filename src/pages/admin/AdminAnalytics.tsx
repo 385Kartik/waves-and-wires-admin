@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
+import { adminService } from '@/services/admin.service';
+import { orderService } from '@/services/order.service';
 
 const COLORS = ['#f97316','#3b82f6','#10b981','#8b5cf6','#ec4899','#f59e0b'];
 const INR = (n:number) => `₹${n.toLocaleString('en-IN')}`;
@@ -20,8 +21,8 @@ export default function AdminAnalytics() {
       const since = subDays(new Date(), days).toISOString();
 
       const [revRes, topRes, catRes] = await Promise.all([
-        supabase.from('admin_revenue_by_day').select('*').order('date', { ascending: true }),
-        supabase.from('admin_top_products').select('*'),
+        adminService.getRevenueByDay(),
+        adminService.getTopProducts(),
         supabase.from('order_items')
           .select('total, products(category_id, categories(name))')
           .gte('created_at', since),

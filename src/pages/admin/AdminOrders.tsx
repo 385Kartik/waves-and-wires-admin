@@ -4,9 +4,9 @@ import {
   Search, RefreshCw, ChevronLeft, ChevronRight, X, Truck,
   CheckCircle, XCircle, Eye, Package, AlertCircle, Link2, RotateCcw,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast }    from 'sonner';
 import { format }   from 'date-fns';
+import { orderService } from '@/services/order.service';
 
 interface OrderItem {
   id: string; product_name: string; product_sku: string | null;

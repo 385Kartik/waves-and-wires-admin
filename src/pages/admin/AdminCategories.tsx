@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, X, FolderOpen, ImageOff } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { categoryService } from '@/services/category.service';
 
 interface Category {
   id: string;

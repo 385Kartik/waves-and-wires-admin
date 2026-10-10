@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, X, ImageOff, Upload, Link2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { productService } from '@/services/product.service';
+import { categoryService } from '@/services/category.service';
 
 interface Product {
   id:string; name:string; slug:string; description:string; short_description:string;

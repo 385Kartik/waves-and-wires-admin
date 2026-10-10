@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Save, Plus, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { adminService } from '@/services/admin.service';
 
 interface Settings {
   store_name: string; store_email: string; store_phone: string;

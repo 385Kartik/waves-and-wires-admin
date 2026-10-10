@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { authService } from '@/services/auth.service';
 
 export default function AdminLoginPage() {
   const { signIn, user, isAdmin, isLoading } = useAuth();

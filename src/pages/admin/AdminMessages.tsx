@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Mail, RefreshCw, CheckCheck, X, Reply, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 

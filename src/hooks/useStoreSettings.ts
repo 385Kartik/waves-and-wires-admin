@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { adminService } from '@/services/admin.service';
 
 export interface StoreSettings {
   store_name: string;
@@ -35,26 +35,33 @@ async function fetchSettings(): Promise<StoreSettings> {
   if (_fetching) return new Promise(resolve => _listeners.push(resolve));
 
   _fetching = true;
-  const { data } = await supabase.from('store_settings').select('*');
+  let data = null;
+  try {
+    const res: any = await adminService.getSettings();
+    data = res?.data;
+  } catch (e) {}
+
   const s = { ...DEFAULTS };
 
-  (data ?? []).forEach((r: any) => {
-    try {
-      const raw = r.value;
-      // raw is already parsed JSONB from Supabase
-      const val = typeof raw === 'object' ? raw : JSON.parse(raw);
-      if (r.key === 'store_phones') {
-        s.store_phones = Array.isArray(val) ? val : [String(val)];
-      } else if (r.key in s) {
-        const k = r.key as keyof StoreSettings;
-        if (typeof (s as any)[k] === 'number') {
-          (s as any)[k] = Number(val);
-        } else {
-          (s as any)[k] = String(val).replace(/^"|"$/g, '');
+  if (Array.isArray(data)) {
+    data.forEach((r: any) => {
+      try {
+        const raw = r.value;
+        // raw is already parsed JSONB from Supabase
+        const val = typeof raw === 'object' ? raw : JSON.parse(raw);
+        if (r.key === 'store_phones') {
+          s.store_phones = Array.isArray(val) ? val : [String(val)];
+        } else if (r.key in s) {
+          const k = r.key as keyof StoreSettings;
+          if (typeof (s as any)[k] === 'number') {
+            (s as any)[k] = Number(val);
+          } else {
+            (s as any)[k] = String(val).replace(/^"|"$/g, '');
+          }
         }
-      }
-    } catch { /* ignore parse errors */ }
-  });
+      } catch { /* ignore parse errors */ }
+    });
+  }
 
   // Sync store_phones with store_phone for backward compat
   if (s.store_phones.length === 0 && s.store_phone) {

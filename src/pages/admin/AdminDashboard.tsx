@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, ShoppingCart, Users, Package, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
+import { adminService } from '@/services/admin.service';
+import { orderService } from '@/services/order.service';
 
 interface Stats { total_orders:number; pending_orders:number; total_revenue:number; today_revenue:number; total_customers:number; new_customers_30d:number; active_products:number; low_stock_count:number; pending_refunds:number; unread_messages:number; }
 interface Order { id:string; order_number:string; status:string; total:number; created_at:string; customer_name?:string; }
@@ -50,12 +51,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function load() {
       const [s, o, c] = await Promise.all([
-        supabase.from('admin_dashboard_stats').select('*').single(),
-        supabase.from('orders')
-          .select('id, order_number, status, total, created_at, shipping_address')
-          .order('created_at', { ascending: false })
-          .limit(8),
-        supabase.from('admin_revenue_by_day').select('*').order('date', { ascending: true }).limit(30),
+        adminService.getDashboardStats(),
+        orderService.getOrders(),
+        adminService.getRevenueByDay(),
       ]);
       if (s.data) setStats(s.data as Stats);
       if (o.data) setOrders(o.data.map((x:any) => ({

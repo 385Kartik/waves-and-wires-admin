@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { RefreshCw, CheckCircle, XCircle, Eye, X, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { orderService } from '@/services/order.service';
 
 interface RefundRequest {
   id: string; order_id: string; reason: string; status: string;

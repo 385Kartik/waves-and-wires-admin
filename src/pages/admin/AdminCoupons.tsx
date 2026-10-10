@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Tag, Edit2, Trash2, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { adminService } from '@/services/admin.service';
 
 interface Coupon { id:string; code:string; description:string|null; discount_type:'percentage'|'fixed'; discount_value:number; min_order_value:number; max_discount:number|null; usage_limit:number|null; used_count:number; is_active:boolean; expires_at:string|null; created_at:string; }
 const INR=(n:number)=>`₹${n.toLocaleString('en-IN')}`;

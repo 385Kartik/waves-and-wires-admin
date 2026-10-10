@@ -5,7 +5,6 @@ import {
   Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 const NAV = [
   { to: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard, end: true },
