@@ -85,7 +85,25 @@ export default function AdminLeads() {
 
   useEffect(() => {
     loadLeads();
-  }, [loadLeads]);
+    const interval = setInterval(() => {
+      leadService.getLeads({
+        search,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        source: sourceFilter !== 'all' ? sourceFilter : undefined,
+        page,
+        limit: 50,
+      }).then((res: any) => {
+        if (res?.data?.leads) {
+          setLeads(res.data.leads);
+          setTotalPages(res.data.totalPages || 1);
+        }
+      }).catch(() => {});
+      leadService.getLeadStats().then((res: any) => {
+        if (res?.data) setStats(res.data);
+      }).catch(() => {});
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [loadLeads, search, statusFilter, sourceFilter, page]);
 
   async function handleStatusChange(id: string, newStatus: string) {
     try {
