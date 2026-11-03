@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Users, BarChart3,
-  Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail,
+  Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail, UserCheck,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const NAV = [
   { to: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard, end: true },
   { to: '/dashboard/orders',     label: 'Orders',     icon: ShoppingCart },
+  { to: '/dashboard/leads',      label: 'CRM / Leads',icon: UserCheck },
   { to: '/dashboard/products',   label: 'Products',   icon: Package },
   { to: '/dashboard/categories', label: 'Categories', icon: FolderOpen },
   { to: '/dashboard/customers',  label: 'Customers',  icon: Users },
