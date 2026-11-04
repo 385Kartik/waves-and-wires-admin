@@ -8,6 +8,10 @@ export interface AuthUser {
   full_name: string;
   phone?: string; 
   is_admin: boolean;
+  role?: string;
+  designation?: string;
+  permissions?: string[];
+  can_receive_leads?: boolean;
 }
 
 interface AuthContextType {
@@ -15,6 +19,7 @@ interface AuthContextType {
   session: any | null;
   isLoading: boolean; 
   isAdmin: boolean;
+  hasPermission: (key: string) => boolean;
   signIn: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   updateProfile: (data: { full_name?: string; phone?: string }) => Promise<boolean>;
@@ -54,6 +59,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => { mounted = false; };
   }, []);
+
+  const hasPermission = (permissionKey: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'super_admin' || user.email === 'admin@wavesandwires.in' || user.permissions?.includes('*')) {
+      return true;
+    }
+    return Boolean(user.permissions?.includes(permissionKey));
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -105,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, isLoading, isAdmin: user?.is_admin ?? false,
-      signIn, signOut, updateProfile,
+      hasPermission, signIn, signOut, updateProfile,
     }}>
       {children}
     </AuthContext.Provider>

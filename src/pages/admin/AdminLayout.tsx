@@ -2,28 +2,29 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Users, BarChart3,
-  Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail, UserCheck, BookOpen,
+  Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail, UserCheck, BookOpen, ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const NAV = [
-  { to: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard, end: true },
-  { to: '/dashboard/orders',     label: 'Orders',     icon: ShoppingCart },
-  { to: '/dashboard/leads',      label: 'Leads Management',icon: UserCheck },
-  { to: '/dashboard/products',   label: 'Products',   icon: Package },
-  { to: '/dashboard/categories', label: 'Categories', icon: FolderOpen },
-  { to: '/dashboard/customers',  label: 'Customers',  icon: Users },
-  { to: '/dashboard/analytics',  label: 'Analytics',  icon: BarChart3 },
-  { to: '/dashboard/inventory',  label: 'Inventory',  icon: Boxes },
-  { to: '/dashboard/coupons',    label: 'Coupons',    icon: Tag },
-  { to: '/dashboard/blogs',      label: 'Blogs & SEO',icon: BookOpen },
-  { to: '/dashboard/refunds',    label: 'Refunds',    icon: RefreshCw },
-  { to: '/dashboard/messages',   label: 'Messages',   icon: Mail },
-  { to: '/dashboard/settings',   label: 'Settings',   icon: Settings },
+  { to: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard, permission: 'dashboard:view', end: true },
+  { to: '/dashboard/orders',     label: 'Orders',     icon: ShoppingCart, permission: 'orders:view' },
+  { to: '/dashboard/leads',      label: 'CRM & Leads',      icon: UserCheck,       permission: 'crm:view' },
+  { to: '/dashboard/staff',      label: 'Staff & Roles',    icon: ShieldCheck,     permission: 'staff:view' },
+  { to: '/dashboard/products',   label: 'Products',   icon: Package, permission: 'products:view' },
+  { to: '/dashboard/categories', label: 'Categories', icon: FolderOpen, permission: 'categories:view' },
+  { to: '/dashboard/customers',  label: 'Customers',  icon: Users, permission: 'customers:view' },
+  { to: '/dashboard/analytics',  label: 'Analytics',  icon: BarChart3, permission: 'analytics:view' },
+  { to: '/dashboard/inventory',  label: 'Inventory',  icon: Boxes, permission: 'inventory:view' },
+  { to: '/dashboard/coupons',    label: 'Coupons',    icon: Tag, permission: 'coupons:view' },
+  { to: '/dashboard/blogs',      label: 'Blogs & SEO',icon: BookOpen, permission: 'blogs:view' },
+  { to: '/dashboard/refunds',    label: 'Refunds',    icon: RefreshCw, permission: 'refunds:view' },
+  { to: '/dashboard/messages',   label: 'Messages',   icon: Mail, permission: 'messages:view' },
+  { to: '/dashboard/settings',   label: 'Settings',   icon: Settings, permission: 'settings:view' },
 ];
 
 export default function AdminLayout() {
-  const { user, signOut, isAdmin, isLoading } = useAuth();
+  const { user, signOut, isAdmin, isLoading, hasPermission } = useAuth();
   const navigate  = useNavigate();
   const location  = useLocation();
   const [collapsed,   setCollapsed]   = useState(false);
@@ -106,7 +107,7 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+          {NAV.filter(n => !n.permission || hasPermission(n.permission)).map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition-all relative group ${
@@ -132,7 +133,9 @@ export default function AdminLayout() {
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-bold text-zinc-300 truncate">{user.full_name || 'Admin'}</p>
-                <p className="text-[9px] text-zinc-600 truncate">{user.email}</p>
+                <p className="text-[9px] text-amber-500 font-bold uppercase tracking-wider truncate">
+                  {user.role ? user.role.replace('_', ' ') : 'Employee'}
+                </p>
               </div>
             </div>
           )}

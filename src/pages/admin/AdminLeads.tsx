@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Search, RefreshCw, Plus, X, MessageCircle, Phone, Mail,
-  CheckCircle, ArrowUpRight, Filter, Trash2, Edit3, UserCheck,
-  ShoppingCart, Flame, AlertCircle, Clock, ChevronLeft, ChevronRight,
-  ExternalLink,
+  CheckCircle, Filter, Trash2, Edit3, UserCheck,
+  ShoppingCart, Flame, AlertCircle, ChevronLeft, ChevronRight,
+  RotateCw, UserPlus, Users, Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { leadService, LeadItem } from '@/services/lead.service';
+import { staffService, StaffItem, RoundRobinConfig } from '@/services/staff.service';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; border: string; bg: string }> = {
   new_lead:    { label: 'New Lead',    color: 'text-amber-700',   border: 'border-amber-200',   bg: 'bg-amber-50' },
@@ -34,13 +35,32 @@ export default function AdminLeads() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [staffFilter, setStaffFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalLeads, setTotalLeads] = useState(0);
 
+  // Available staff for lead assignment
+  const [availableStaff, setAvailableStaff] = useState<StaffItem[]>([]);
+
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalLead, setEditModalLead] = useState<LeadItem | null>(null);
+  const [isRoundRobinModalOpen, setIsRoundRobinModalOpen] = useState(false);
+
+  // Round Robin State
+  const [rrConfig, setRrConfig] = useState<RoundRobinConfig>({
+    is_enabled: true,
+    target_roles: ['executive'],
+    order_target_roles: ['manager', 'executive'],
+    whatsapp_enabled: true,
+    cart_enabled: true,
+    signup_enabled: true,
+    order_enabled: true,
+  });
+  const [rrParticipants, setRrParticipants] = useState<any[]>([]);
+  const [savingRr, setSavingRr] = useState(false);
+  const [reshuffling, setReshuffling] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,7 +72,25 @@ export default function AdminLeads() {
     product_name: 'Electric Coconut Scraper',
     status: 'new_lead',
     notes: '',
+    assigned_to: '',
   });
+
+  // Load available staff
+  const loadStaff = useCallback(async () => {
+    try {
+      const res: any = await staffService.getStaff();
+      if (res?.data) setAvailableStaff(res.data);
+    } catch {}
+  }, []);
+
+  // Load RR config
+  const loadRrConfig = useCallback(async () => {
+    try {
+      const res: any = await staffService.getRoundRobinConfig();
+      if (res?.data?.config) setRrConfig(res.data.config);
+      if (res?.data?.participants) setRrParticipants(res.data.participants);
+    } catch {}
+  }, []);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -60,8 +98,9 @@ export default function AdminLeads() {
       const [leadsRes, statsRes]: any = await Promise.all([
         leadService.getLeads({
           search,
-          status: statusFilter,
-          source: sourceFilter,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          source: sourceFilter !== 'all' ? sourceFilter : undefined,
+          assigned_to: staffFilter !== 'all' ? staffFilter : undefined,
           page,
           limit: 30,
         }),
@@ -81,15 +120,19 @@ export default function AdminLeads() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, sourceFilter, page]);
+  }, [search, statusFilter, sourceFilter, staffFilter, page]);
 
   useEffect(() => {
     loadLeads();
+    loadStaff();
+    loadRrConfig();
+
     const interval = setInterval(() => {
       leadService.getLeads({
         search,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         source: sourceFilter !== 'all' ? sourceFilter : undefined,
+        assigned_to: staffFilter !== 'all' ? staffFilter : undefined,
         page,
         limit: 50,
       }).then((res: any) => {
@@ -103,7 +146,7 @@ export default function AdminLeads() {
       }).catch(() => {});
     }, 8000);
     return () => clearInterval(interval);
-  }, [loadLeads, search, statusFilter, sourceFilter, page]);
+  }, [loadLeads, loadStaff, loadRrConfig, search, statusFilter, sourceFilter, staffFilter, page]);
 
   async function handleStatusChange(id: string, newStatus: string) {
     try {
@@ -117,6 +160,21 @@ export default function AdminLeads() {
       });
     } catch (err: any) {
       toast.error(err.message || 'Failed to update status');
+    }
+  }
+
+  // 1-Click Assign Lead
+  async function handleAssignLead(leadId: string, assignedTo: string | null) {
+    try {
+      const res: any = await leadService.assignLead(leadId, assignedTo);
+      const updated = res?.data || res;
+      setLeads((prev) =>
+        prev.map((l) => (l._id === leadId ? { ...l, assigned_to: updated.assigned_to } : l))
+      );
+      const emp = availableStaff.find((s) => s._id === assignedTo);
+      toast.success(assignedTo ? `Lead assigned to ${emp?.full_name || 'Staff'}` : 'Lead unassigned');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update lead assignment');
     }
   }
 
@@ -149,6 +207,7 @@ export default function AdminLeads() {
         product_name: 'Electric Coconut Scraper',
         status: 'new_lead',
         notes: '',
+        assigned_to: '',
       });
       loadLeads();
     } catch (err: any) {
@@ -168,6 +227,7 @@ export default function AdminLeads() {
         status: editModalLead.status,
         notes: editModalLead.notes,
         product_name: editModalLead.product_name,
+        assigned_to: (editModalLead.assigned_to?._id || editModalLead.assigned_to?.id || null) as any,
       });
       toast.success('Lead updated successfully');
       setEditModalLead(null);
@@ -177,31 +237,73 @@ export default function AdminLeads() {
     }
   }
 
+  // Save Round Robin Config
+  const handleSaveRrConfig = async () => {
+    setSavingRr(true);
+    try {
+      await staffService.updateRoundRobinConfig(rrConfig);
+      toast.success('Lead Round Robin settings updated');
+      setIsRoundRobinModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save settings');
+    } finally {
+      setSavingRr(false);
+    }
+  };
+
+  // Run Reshuffle
+  const handleReshuffleNow = async () => {
+    setReshuffling(true);
+    try {
+      const res: any = await staffService.reshuffleUnassigned();
+      toast.success(res?.message || 'Unassigned leads distributed');
+      loadLeads();
+      loadRrConfig();
+    } catch (err: any) {
+      toast.error(err.message || 'Reshuffle failed');
+    } finally {
+      setReshuffling(false);
+    }
+  };
+
   function openWhatsAppChat(lead: LeadItem) {
-    const cleanDigits = lead.phone.replace(/\D/g, '').slice(-10);
-    const text = encodeURIComponent(
-      `Hello ${lead.name || 'there'}! This is Waves & Wires Technologies. We saw you were interested in our Electric Coconut Scraper (${lead.quantity || 1} Unit). How can we assist you today?`
+    const raw = lead.phone.replace(/\D/g, '');
+    const phone = raw.startsWith('91') && raw.length === 12 ? raw : raw.length === 10 ? `91${raw}` : raw;
+    const msg = encodeURIComponent(
+      `Hello ${lead.name || 'there'}! 👋\n\nThank you for reaching out to Waves & Wires regarding our Electric Coconut Scraper Model M01.\n\nHow can we help you complete your order today?`
     );
-    window.open(`https://wa.me/91${cleanDigits}?text=${text}`, '_blank');
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   }
 
   return (
-    <div className="p-5 sm:p-6 space-y-6">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+      {/* ── Top Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight flex items-center gap-2.5">
-            <span>CRM &amp; Leads Management</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
-              {totalLeads} Total Leads
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">
+              CRM &amp; Leads Management
+            </h1>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              {stats?.total ?? totalLeads} Total Leads
             </span>
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            Real-time leads captured from WhatsApp chats, Add to Cart clicks, and Signups
+          </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            Real-time leads captured from WhatsApp chats, Add to Cart clicks, Signups, and Orders
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsRoundRobinModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+          >
+            <RotateCw className="h-3.5 w-3.5 text-amber-500" />
+            <span>Round Robin Settings</span>
+            <span className={`inline-block h-2 w-2 rounded-full ${rrConfig.is_enabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300'}`} />
+          </button>
+
           <button
             type="button"
             onClick={() => loadLeads()}
@@ -214,7 +316,7 @@ export default function AdminLeads() {
           <button
             type="button"
             onClick={() => setAddModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 active:scale-[0.98] text-stone-950 text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Add Lead</span>
@@ -288,6 +390,24 @@ export default function AdminLeads() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Staff Assignment Filter */}
+            <select
+              value={staffFilter}
+              onChange={(e) => {
+                setStaffFilter(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 text-xs font-semibold bg-zinc-50 border border-zinc-200 rounded-xl outline-none text-zinc-700 cursor-pointer"
+            >
+              <option value="all">All Assigned Staff</option>
+              <option value="unassigned">— Unassigned Only —</option>
+              {availableStaff.map((s) => (
+                <option key={s._id} value={s._id}>
+                  👤 {s.full_name} ({s.role})
+                </option>
+              ))}
+            </select>
+
             {/* Status Select */}
             <select
               value={statusFilter}
@@ -353,7 +473,7 @@ export default function AdminLeads() {
       {/* ── Leads Table ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-zinc-200/80 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm min-w-[850px]">
+          <table className="w-full text-left text-sm min-w-[950px]">
             <thead>
               <tr className="border-b border-zinc-100 bg-zinc-50/75 text-[11px] font-bold uppercase tracking-wider text-zinc-500">
                 <th className="px-4 py-3.5">Customer</th>
@@ -361,6 +481,7 @@ export default function AdminLeads() {
                 <th className="px-4 py-3.5">Source</th>
                 <th className="px-4 py-3.5 text-center">Quantity</th>
                 <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5">Assigned To</th>
                 <th className="px-4 py-3.5">Notes</th>
                 <th className="px-4 py-3.5">Date</th>
                 <th className="px-4 py-3.5 text-right">Actions</th>
@@ -370,7 +491,7 @@ export default function AdminLeads() {
               {loading ? (
                 [...Array(6)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {[...Array(8)].map((_, j) => (
+                    {[...Array(9)].map((_, j) => (
                       <td key={j} className="px-4 py-4">
                         <div className="h-4 bg-zinc-100 rounded-md" />
                       </td>
@@ -379,7 +500,7 @@ export default function AdminLeads() {
                 ))
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-14 text-center">
+                  <td colSpan={9} className="py-14 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto text-zinc-400 mb-3">
                       <UserCheck className="h-6 w-6" />
                     </div>
@@ -392,7 +513,7 @@ export default function AdminLeads() {
                   const src = SOURCE_CONFIG[lead.source] || SOURCE_CONFIG.other;
                   const SrcIcon = src.icon;
                   const st = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new_lead;
-                  const cleanPhone = lead.phone.replace(/\D/g, '').slice(-10);
+                  const assignedEmp = lead.assigned_to;
 
                   return (
                     <tr key={lead._id} className="hover:bg-zinc-50/70 transition-colors">
@@ -437,18 +558,16 @@ export default function AdminLeads() {
 
                       {/* Source */}
                       <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${src.bg} ${src.color}`}
-                        >
-                          <SrcIcon className="h-3 w-3" />
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${src.bg} ${src.color}`}>
+                          <SrcIcon className="h-3.5 w-3.5" />
                           <span>{src.label}</span>
                         </span>
                       </td>
 
                       {/* Quantity */}
                       <td className="px-4 py-3.5 text-center">
-                        <span className="inline-block px-2.5 py-0.5 rounded-md bg-zinc-100 text-zinc-900 font-black text-xs">
-                          {lead.quantity || 1} {lead.quantity === 2 ? 'Units (Combo)' : 'Unit'}
+                        <span className="inline-block px-2.5 py-0.5 rounded-md bg-zinc-100 text-zinc-800 font-bold text-xs">
+                          {lead.quantity} {lead.quantity > 1 ? 'Units' : 'Unit'}
                         </span>
                       </td>
 
@@ -457,7 +576,7 @@ export default function AdminLeads() {
                         <select
                           value={lead.status}
                           onChange={(e) => handleStatusChange(lead._id, e.target.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border outline-none cursor-pointer ${st.bg} ${st.color} ${st.border}`}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg border outline-none cursor-pointer transition-colors ${st.bg} ${st.color} ${st.border}`}
                         >
                           <option value="new_lead">New Lead</option>
                           <option value="contacted">Contacted</option>
@@ -467,6 +586,33 @@ export default function AdminLeads() {
                           <option value="closed_lost">Closed Lost</option>
                           <option value="refund">Refund</option>
                         </select>
+                      </td>
+
+                      {/* Assigned To Column */}
+                      <td className="px-4 py-3.5">
+                        <div className="relative inline-block text-left">
+                          <select
+                            value={assignedEmp?._id || assignedEmp?.id || ''}
+                            onChange={(e) => handleAssignLead(lead._id, e.target.value || null)}
+                            className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border outline-none cursor-pointer transition-all ${
+                              assignedEmp
+                                ? 'bg-amber-50/70 border-amber-200/80 text-amber-950 hover:bg-amber-100/80'
+                                : 'bg-zinc-50 border-dashed border-zinc-300 text-zinc-500 hover:border-zinc-400'
+                            }`}
+                          >
+                            <option value="">— Unassigned —</option>
+                            {availableStaff.map((s) => (
+                              <option key={s._id} value={s._id}>
+                                👤 {s.full_name} ({s.role})
+                              </option>
+                            ))}
+                          </select>
+                          {assignedEmp?.designation && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[130px]">
+                              {assignedEmp.designation}
+                            </p>
+                          )}
+                        </div>
                       </td>
 
                       {/* Notes */}
@@ -518,31 +664,32 @@ export default function AdminLeads() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 bg-zinc-50/50">
             <p className="text-xs text-zinc-500">
-              Page <span className="font-bold text-zinc-800">{page}</span> of {totalPages}
+              Showing page <span className="font-bold text-zinc-800">{page}</span> of{' '}
+              <span className="font-bold text-zinc-800">{totalPages}</span>
             </p>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg border border-zinc-200 text-zinc-600 disabled:opacity-40 hover:bg-zinc-100 transition-all cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg border border-zinc-200 text-xs font-semibold text-zinc-600 hover:bg-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5 inline mr-1" /> Prev
               </button>
               <button
                 type="button"
                 disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 rounded-lg border border-zinc-200 text-zinc-600 disabled:opacity-40 hover:bg-zinc-100 transition-all cursor-pointer"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1.5 rounded-lg border border-zinc-200 text-xs font-semibold text-zinc-600 hover:bg-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
-                <ChevronRight className="h-4 w-4" />
+                Next <ChevronRight className="h-3.5 w-3.5 inline ml-1" />
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Modal: Add Lead ────────────────────────────────────────────────── */}
+      {/* ── Modal: Add Lead ─────────────────────────────────────────────────── */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
@@ -638,13 +785,19 @@ export default function AdminLeads() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-700 mb-1">Product</label>
-                <input
-                  type="text"
-                  value={formData.product_name}
-                  onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                  className="w-full px-3.5 py-2 text-sm bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-amber-400 focus:bg-white"
-                />
+                <label className="block text-xs font-bold text-zinc-700 mb-1">Assign to Employee</label>
+                <select
+                  value={formData.assigned_to}
+                  onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-zinc-50 border border-zinc-200 rounded-xl outline-none"
+                >
+                  <option value="">Auto-Assign via Round Robin</option>
+                  {availableStaff.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      👤 {s.full_name} ({s.role})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -660,7 +813,7 @@ export default function AdminLeads() {
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-sm transition-all cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-sm shadow-sm transition-all cursor-pointer"
               >
                 Create Lead
               </button>
@@ -721,21 +874,46 @@ export default function AdminLeads() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-zinc-700 mb-1">Status</label>
-                <select
-                  value={editModalLead.status}
-                  onChange={(e) => setEditModalLead({ ...editModalLead, status: e.target.value as any })}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-zinc-50 border border-zinc-200 rounded-xl outline-none"
-                >
-                  <option value="new_lead">New Lead</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="interested">Interested</option>
-                  <option value="in_cart">In Cart</option>
-                  <option value="closed_won">Closed Won</option>
-                  <option value="closed_lost">Closed Lost</option>
-                  <option value="refund">Refund</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">Status</label>
+                  <select
+                    value={editModalLead.status}
+                    onChange={(e) => setEditModalLead({ ...editModalLead, status: e.target.value as any })}
+                    className="w-full px-3 py-2 text-xs font-semibold bg-zinc-50 border border-zinc-200 rounded-xl outline-none"
+                  >
+                    <option value="new_lead">New Lead</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="interested">Interested</option>
+                    <option value="in_cart">In Cart</option>
+                    <option value="closed_won">Closed Won</option>
+                    <option value="closed_lost">Closed Lost</option>
+                    <option value="refund">Refund</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">Assigned Employee</label>
+                  <select
+                    value={editModalLead.assigned_to?._id || editModalLead.assigned_to?.id || ''}
+                    onChange={(e) => {
+                      const empId = e.target.value;
+                      const emp = availableStaff.find((s) => s._id === empId);
+                      setEditModalLead({
+                        ...editModalLead,
+                        assigned_to: emp ? { _id: emp._id, full_name: emp.full_name, email: emp.email, role: emp.role } : null,
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-xs font-semibold bg-zinc-50 border border-zinc-200 rounded-xl outline-none"
+                  >
+                    <option value="">— Unassigned —</option>
+                    {availableStaff.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        👤 {s.full_name} ({s.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -761,12 +939,117 @@ export default function AdminLeads() {
 
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs transition-all cursor-pointer"
                 >
                   Save Changes
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Round Robin Settings (From CRM Page) ───────────── */}
+      {isRoundRobinModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl bg-white border border-zinc-200 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <RotateCw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-zinc-900">Lead Round Robin Settings</h2>
+                  <p className="text-xs text-zinc-500">Automated leads rotation across executives and managers</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRoundRobinModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Master Switch */}
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/50 p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-black text-zinc-900">Automated Round Robin Engine</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    Automatically assign incoming leads from WhatsApp chats, Add-to-Cart events, and signups to active executives
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRrConfig({ ...rrConfig, is_enabled: !rrConfig.is_enabled })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    rrConfig.is_enabled ? 'bg-emerald-500' : 'bg-zinc-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      rrConfig.is_enabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Participating Staff List */}
+              <div className="rounded-2xl border border-zinc-200 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-zinc-900">Current Rotation Pool ({rrParticipants.length} Staff)</p>
+                  <button
+                    type="button"
+                    onClick={handleReshuffleNow}
+                    disabled={reshuffling}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 text-[11px] font-bold transition-all cursor-pointer"
+                  >
+                    <RotateCw className={`h-3 w-3 ${reshuffling ? 'animate-spin' : ''}`} />
+                    {reshuffling ? 'Reshuffling...' : 'Reshuffle Unassigned Now'}
+                  </button>
+                </div>
+
+                <div className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 overflow-hidden">
+                  {rrParticipants.map((p) => (
+                    <div key={p._id} className="p-3 flex items-center justify-between text-xs bg-white hover:bg-zinc-50">
+                      <div>
+                        <p className="font-bold text-zinc-900">{p.name}</p>
+                        <p className="text-[10px] text-zinc-400">
+                          {p.role} • {p.lead_count} total leads • Last assigned: {p.last_lead_assigned ? new Date(p.last_lead_assigned).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never'}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        p.can_receive_leads ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-600'
+                      }`}>
+                        {p.can_receive_leads ? 'In Pool' : 'Paused'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-100 shrink-0 bg-zinc-50/50">
+              <button
+                type="button"
+                onClick={() => setIsRoundRobinModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 transition-all cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveRrConfig}
+                disabled={savingRr}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-sm active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {savingRr ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
           </div>
         </div>
       )}
