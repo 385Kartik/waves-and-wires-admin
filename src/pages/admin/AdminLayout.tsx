@@ -92,33 +92,33 @@ export default function AdminLayout() {
     <div className="flex h-screen overflow-hidden" style={{ background: '#f4f3ef' }}>
       {/* Sidebar */}
       <aside
-        className="flex flex-col bg-[#111113] border-r border-white/5 transition-all duration-300 shrink-0 relative"
+        className="flex flex-col bg-white border-r border-zinc-200/90 shadow-xs transition-all duration-300 shrink-0 relative z-10"
         style={{ width: collapsed ? 68 : 240 }}>
 
-        <div className="flex items-center gap-3 h-16 px-4 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-3 h-16 px-4 border-b border-zinc-100 shrink-0">
           <div className="h-8 w-8 shrink-0 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center">
             <span className="text-[10px] font-black text-black">W&W</span>
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-black text-white truncate leading-tight">Waves & Wires</p>
-              <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-semibold">Admin</p>
+              <p className="text-sm font-black text-zinc-900 truncate leading-tight tracking-tight">Waves &amp; Wires</p>
+              <p className="text-[9px] text-zinc-400 uppercase tracking-widest font-bold">Admin Panel</p>
             </div>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-1">
           {NAV.filter(n => !n.permission || hasPermission(n.permission)).map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition-all relative group ${
-                  isActive ? 'bg-yellow-400/12 text-yellow-400' : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-200'
+                  isActive ? 'bg-amber-50 text-amber-900 font-bold border border-amber-200/70 shadow-xs' : 'text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-950 font-medium'
                 }`
               }>
               {({ isActive }) => (
                 <>
-                  {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r-full bg-yellow-400" />}
-                  <Icon className={`h-[17px] w-[17px] shrink-0 ${isActive ? 'text-yellow-400' : ''}`} />
+                  {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-amber-500" />}
+                  <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? 'text-amber-600' : 'text-zinc-400 group-hover:text-zinc-700'}`} />
                   {!collapsed && <span className="truncate">{label}</span>}
                 </>
               )}
@@ -126,29 +126,29 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="border-t border-white/5 p-2 space-y-1">
+        <div className="border-t border-zinc-100 p-2.5 space-y-1 bg-zinc-50/60">
           {!collapsed && (
             <div className="flex items-center gap-2.5 px-2.5 py-2 mb-1">
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shrink-0">
                 <span className="text-[10px] font-black text-black">{initials}</span>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold text-zinc-300 truncate">{user.full_name || 'Admin'}</p>
-                <p className="text-[9px] text-amber-500 font-bold uppercase tracking-wider truncate">
+                <p className="text-xs font-bold text-zinc-900 truncate">{user.full_name || 'Admin'}</p>
+                <p className="text-[9px] text-amber-600 font-bold uppercase tracking-wider truncate">
                   {user.role ? user.role.replace('_', ' ') : 'Employee'}
                 </p>
               </div>
             </div>
           )}
           <button onClick={() => signOut().then(() => navigate('/login'))}
-            className="flex items-center gap-2.5 w-full rounded-xl px-2.5 py-2 text-xs text-zinc-600 hover:bg-red-500/10 hover:text-red-400 transition-all font-medium">
+            className="flex items-center gap-2.5 w-full rounded-xl px-2.5 py-2 text-xs text-zinc-500 hover:bg-red-50 hover:text-red-600 transition-all font-medium">
             <LogOut className="h-4 w-4 shrink-0" />
             {!collapsed && 'Sign Out'}
           </button>
         </div>
 
         <button onClick={() => setCollapsed(v => !v)}
-          className="absolute -right-3 top-20 h-6 w-6 rounded-full bg-[#1a1a1d] border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white transition-all z-10">
+          className="absolute -right-3 top-20 h-6 w-6 rounded-full bg-white border border-zinc-300 shadow-md flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-all z-20">
           <ChevronRight className={`h-3 w-3 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
         </button>
       </aside>
