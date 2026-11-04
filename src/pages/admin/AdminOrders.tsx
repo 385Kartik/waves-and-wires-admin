@@ -335,7 +335,7 @@ export default function AdminOrders() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                  {['Order #', 'Customer', 'Status', 'Payment', 'Method', 'Total', 'Date', ''].map(h => (
+                  {['Order #', 'Customer', 'Status', 'Payment', 'Invoice / Credit Note', 'Method', 'Total', 'Date', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -353,6 +353,28 @@ export default function AdminOrders() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PAYMENT_COLORS[o.payment_status] ?? ''}`}>{o.payment_status}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex flex-col gap-1 items-start">
+                        <a
+                          href={`/api/invoices/order/${o.order_number}/view`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition-colors"
+                        >
+                          📄 Invoice
+                        </a>
+                        {o.status === 'cancelled' && (
+                          <a
+                            href={`/api/credit-notes/order/${o.order_number}/view`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded border border-red-200 transition-colors"
+                          >
+                            📑 Credit Note
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-500 uppercase">{o.payment_method}</td>
                     <td className="px-4 py-3 font-bold text-zinc-800">{INR(o.total)}</td>
@@ -489,6 +511,39 @@ export default function AdminOrders() {
                       )}
                     </div>
                   )}
+                </div>
+              </section>
+
+              {/* ── GST Billing & Tax Documents ──────────────────────────── */}
+              <section className="border border-zinc-200 rounded-2xl overflow-hidden">
+                <div className="bg-zinc-50 px-4 py-3 border-b border-zinc-200 flex items-center justify-between">
+                  <span className="text-xs font-bold text-zinc-700 uppercase tracking-wide">GST Billing & Tax Documents</span>
+                  <span className="text-[10px] font-semibold text-zinc-400">HSN: 8509 (18% GST)</span>
+                </div>
+                <div className="p-4 space-y-2.5">
+                  <div className="flex gap-2">
+                    <a
+                      href={`/api/invoices/order/${selected.order_number}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                    >
+                      📄 View / Print Tax Invoice
+                    </a>
+                    {selected.status === 'cancelled' && (
+                      <a
+                        href={`/api/credit-notes/order/${selected.order_number}/view`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        📑 View Tax Credit Note
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    Official tax invoice with customer billing address, GST breakdown (CGST+SGST or IGST), and status stamp.
+                  </p>
                 </div>
               </section>
 
