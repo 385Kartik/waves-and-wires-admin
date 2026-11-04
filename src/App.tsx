@@ -17,6 +17,7 @@ import AdminMessages   from '@/pages/admin/AdminMessages';
 import AdminLeads      from '@/pages/admin/AdminLeads';
 import AdminBlogs      from '@/pages/admin/AdminBlogs';
 import AdminStaff      from '@/pages/admin/AdminStaff';
+import AdminInvoices   from '@/pages/admin/AdminInvoices';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/dashboard" element={<AdminLayout />}>
               <Route index          element={<AdminDashboard />} />
               <Route path="orders"     element={<AdminOrders />} />
+              <Route path="invoices"   element={<AdminInvoices />} />
               <Route path="leads"      element={<AdminLeads />} />
               <Route path="staff"      element={<AdminStaff />} />
               <Route path="products"   element={<AdminProducts />} />
