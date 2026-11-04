@@ -15,6 +15,7 @@ import AdminSettings   from '@/pages/admin/AdminSettings';
 import AdminRefunds    from '@/pages/admin/AdminRefunds';
 import AdminMessages   from '@/pages/admin/AdminMessages';
 import AdminLeads      from '@/pages/admin/AdminLeads';
+import AdminBlogs      from '@/pages/admin/AdminBlogs';
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="inventory"  element={<AdminInventory />} />
               <Route path="coupons"    element={<AdminCoupons />} />
               <Route path="refunds"    element={<AdminRefunds />} />
+              <Route path="blogs"      element={<AdminBlogs />} />
               <Route path="messages"   element={<AdminMessages />} />
               <Route path="settings"   element={<AdminSettings />} />
             </Route>

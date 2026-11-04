@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingCart, Package, Users, BarChart3,
-  Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail, UserCheck,
+  Tag, Settings, LogOut, Bell, Boxes, FolderOpen, ChevronRight, RefreshCw, Mail, UserCheck, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/dashboard/analytics',  label: 'Analytics',  icon: BarChart3 },
   { to: '/dashboard/inventory',  label: 'Inventory',  icon: Boxes },
   { to: '/dashboard/coupons',    label: 'Coupons',    icon: Tag },
+  { to: '/dashboard/blogs',      label: 'Blogs & SEO',icon: BookOpen },
   { to: '/dashboard/refunds',    label: 'Refunds',    icon: RefreshCw },
   { to: '/dashboard/messages',   label: 'Messages',   icon: Mail },
   { to: '/dashboard/settings',   label: 'Settings',   icon: Settings },
