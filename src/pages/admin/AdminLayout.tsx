@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const NAV = [
   { to: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard, end: true },
   { to: '/dashboard/orders',     label: 'Orders',     icon: ShoppingCart },
-  { to: '/dashboard/leads',      label: 'CRM / Leads',icon: UserCheck },
+  { to: '/dashboard/leads',      label: 'Leads Management',icon: UserCheck },
   { to: '/dashboard/products',   label: 'Products',   icon: Package },
   { to: '/dashboard/categories', label: 'Categories', icon: FolderOpen },
   { to: '/dashboard/customers',  label: 'Customers',  icon: Users },
